@@ -16,7 +16,8 @@ function keepsOwnGroups(url: string): boolean {
 
 function withGroup(extinf: string, group: string): string {
   const attr = `group-title="${group.replace(/"/g, '')}"`;
-  if (GROUP_ATTR.test(extinf)) return extinf.replace(GROUP_ATTR, attr);
+  // A replacer function keeps `$&`-style patterns in list names literal.
+  if (GROUP_ATTR.test(extinf)) return extinf.replace(GROUP_ATTR, () => attr);
   // The first comma outside quotes ends the attribute list.
   let quoted = false;
   for (let i = 0; i < extinf.length; i++) {

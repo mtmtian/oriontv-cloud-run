@@ -24,8 +24,10 @@ KINDS=[('api_site','SourceConfig','api','/api/admin/source','ok'),
 
 def add_sources(request, sources):
     """Add missing VOD and live sources; never replace configuration or change existing entries."""
-    kinds=[kind for kind in KINDS if sources.get(kind[0]) is not None]
-    if not kinds or any(not isinstance(sources[kind[0]],dict) or not sources[kind[0]] for kind in kinds):
+    if any(sources.get(kind[0]) is not None and not isinstance(sources[kind[0]],dict) for kind in KINDS):
+        raise ValueError('api_site and lives must be objects')
+    kinds=[kind for kind in KINDS if sources.get(kind[0])]
+    if not kinds:
         raise ValueError('Expected a non-empty api_site or lives object')
     config=request('/api/admin/config')['Config']
     pending=[]
@@ -34,14 +36,17 @@ def add_sources(request, sources):
         for key, source in sources[field].items():
             if not isinstance(source,dict) or not all(isinstance(v,str) and v.strip() for v in (key,source.get('name'),source.get(link))):
                 raise ValueError(f'Every {field} entry needs a non-empty key, name and {link}')
-            if not source[link].startswith('https://'):
+            extras={k:source[k] for k in ('ua','epg') if field=='lives' and source.get(k) is not None}
+            if not all(isinstance(v,str) for v in extras.values()):
+                raise ValueError('Live ua and epg must be strings')
+            if not all(url.startswith('https://') for url in (source[link],extras.get('epg') or 'https://')):
                 raise ValueError('Source additions require HTTPS')
             if key in by_key:
                 if by_key[key][link] != source[link]:
                     raise ValueError(f'An existing {field} key has a different {link}; no changes made')
                 continue
             body={'action':'add','key':key,'name':source['name'],link:source[link]}
-            body.update({k:source[k] for k in ('ua','epg') if field=='lives' and source.get(k)})
+            body.update({k:v for k,v in extras.items() if v})
             pending.append((field,path,flag,body))
     # Validate the entire batch before the first write. Retry safely skips additions
     # already completed if a later request fails; it never resets existing sources.

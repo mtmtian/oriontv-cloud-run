@@ -101,6 +101,19 @@ class LiveAdditionsTest(unittest.TestCase):
                     'lives':{'tw':{'name':'Taiwan','url':'https://tw.example/tw.m3u'},key:live}})
         self.assertEqual(self.writes,[])
 
+    def test_empty_section_is_ignored(self):
+        add_sources(self.request,{'api_site':{'vod':{'name':'VOD','api':'https://vod.example/api'}},'lives':{}})
+        self.assertEqual([path for path,_ in self.writes],['/api/admin/source'])
+        for empty in [{}, {'api_site':{},'lives':{}}]:
+            with self.subTest(sources=empty),self.assertRaises(ValueError):
+                add_sources(self.request,empty)
+
+    def test_optional_live_fields_are_checked(self):
+        for extra in [{'ua':7},{'epg':'http://epg.example/guide.xml'}]:
+            with self.subTest(extra=extra),self.assertRaises(ValueError):
+                add_sources(self.request,{'lives':{'tw':{'name':'Taiwan','url':'https://tw.example/tw.m3u',**extra}}})
+        self.assertEqual(self.writes,[])
+
     def test_rejected_list_stops_the_batch(self):
         def reject(path,data=None):
             if data is None:return self.request(path)

@@ -70,6 +70,11 @@ test('removes quotes from list names used as groups', () => {
   assert.match(merged, /group-title="My TW list",CTS/);
 });
 
+test('keeps replacement patterns in list names literal', () => {
+  const merged = mergePlaylists([{ ...taiwan, name: "Sports $' $& x" }]);
+  assert.match(merged, /group-title="Sports \$' \$& x",CTS \(1080p\)/);
+});
+
 test('ignores entries without a stream URL', () => {
   const merged = mergePlaylists([
     { ...guovin, text: '#EXTINF:-1,Broken\n#EXTINF:-1,Fine\nhttp://a.example/fine.m3u8' },

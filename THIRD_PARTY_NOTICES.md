@@ -9,7 +9,7 @@
 - 本次修改：`src/middleware.ts` 增加关闭媒体代理的开关；`src/app/api/cron/route.ts` 增加禁用 cron 开关；`start.js` 在禁用后台任务时跳过进程定时器；补充 `.gcloudignore`。
 - LunaTV 的上述衍生改动沿用 CC BY-NC-SA 4.0。
 - 后续修改：`src/lib/exact-title-search.ts` 和 OrionTV 单源查询增加标题空格归一化与一次去空格重试；对应回归测试位于 `tests/exact-title-search.test.mjs`，同样沿用 CC BY-NC-SA 4.0。
-- 直播合并：新增 `src/lib/live-playlist.ts` 与 `src/app/api/live/playlist/route.ts`，把启用的直播列表合并成一个 M3U；`src/middleware.ts` 让该接口跳过 cookie 鉴权，由接口自行校验 token。回归测试位于 `tests/live-playlist.test.mjs`，同样沿用 CC BY-NC-SA 4.0。
+- 直播合并：新增 `src/lib/live-playlist.ts` 与 `src/app/api/live/playlist/route.ts`，把启用的直播列表合并成一个 M3U；`src/middleware.ts` 让该接口跳过 cookie 鉴权，由接口自行校验 token；`src/lib/live.ts` 导出原有的默认 UA 常量供其复用。回归测试位于 `tests/live-playlist.test.mjs`，同样沿用 CC BY-NC-SA 4.0。
 
 ## 客户端与节目来源
 
