@@ -15,7 +15,7 @@
     },
     "wujin": {
       "name": "无尽资源",
-      "api": "https://api.wujinapi.me/api.php/provide/vod"
+      "api": "https://api.wujinapi.com/api.php/provide/vod"
     },
     "ikun": {
       "name": "iKun资源",
