@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 export interface PlaylistSource {
   name: string;
+  /** URL the text was served from, after redirects. */
   url: string;
   text: string;
 }
@@ -35,7 +36,7 @@ export function isPlaylist(text: string): boolean {
 }
 
 // The TV would resolve a relative reference against this backend, so resolve
-// it against the list's own URL. Absolute URLs are kept byte-for-byte.
+// it against the URL the list was served from. Absolute URLs stay byte-for-byte.
 function streamUrl(line: string, listUrl: string): string | null {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) return line;
   try {
