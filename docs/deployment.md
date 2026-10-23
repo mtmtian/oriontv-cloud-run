@@ -66,7 +66,15 @@ cp cloud/sources.example.json .local/sources.json
 python3 cloud/configure_service.py
 ```
 
-示例保留本次使用的两个公开点播 API 与 Guovin 公共直播列表。它们属于第三方，内容和可用性不由本仓库控制；不是本仓库托管的视频库。导入动作会替换后台的来源配置，先保留自己原有配置。
+示例包含量子、光速、如意、无尽、iKun 五个公开点播 API 与 Guovin 公共直播列表。它们属于第三方，内容和可用性不由本仓库控制；不是本仓库托管的视频库。上面的默认导入动作会替换后台的来源配置，先保留自己原有配置。
+
+已有部署补充来源时使用增量模式：
+
+```sh
+python3 cloud/configure_service.py --add-sources cloud/sources.example.json
+```
+
+增量模式只调用后台的单源添加接口：相同 key、相同 API 的源跳过，不改变原有名称、禁用状态或顺序；相同 key 指向不同 API 时在写入前报错。直播、订阅、用户、收藏及进度不由此模式修改。批次不是事务；中途失败时已添加的源保留，重新核对后再次执行会跳过它们。新增源不会扩大已有用户/用户组的显式源权限白名单，需要管理员按实际需求另行授权。
 
 `configure_service.py` 会从 Cloud Run 查询并验证后端地址，然后在内存中用管理员登录，导入来源，并在缺少时创建普通用户 `projector`。已有用户不会被重置密码。它不会打印来源正文、密码或登录 cookie。电视端设置见 [OrionTV 接入](oriontv.md)。
 

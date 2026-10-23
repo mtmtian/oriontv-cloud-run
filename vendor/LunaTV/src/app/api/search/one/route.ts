@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import { searchExactTitle } from '@/lib/exact-title-search';
 import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
@@ -49,8 +50,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const results = await searchFromApi(targetSite, query);
-    let result = results.filter((r) => r.title === query);
+    let result = await searchExactTitle(query, (keyword) =>
+      searchFromApi(targetSite, keyword)
+    );
     if (!config.SiteConfig.DisableYellowFilter) {
       result = result.filter((result) => {
         const typeName = result.type_name || '';
