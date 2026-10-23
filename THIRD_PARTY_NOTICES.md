@@ -14,6 +14,7 @@
 
 - [OrionTV](https://github.com/orion-lib/OrionTV)：外部客户端，仅提供接入文档，未复制客户端源码或 APK。
 - [Guovin/iptv-api](https://github.com/Guovin/iptv-api)：示例引用公开生成的 IPv4 M3U，未复制采集器源码或节目媒体。
+- [iptv-org/iptv](https://github.com/iptv-org/iptv)：示例引用其按国家/地区与语言公开发布的 M3U，未复制节目媒体。
 - 点播来源示例保留此次部署使用的公开 API 地址；没有复制视频、用户账号、访问凭据或私密订阅。
 
 `cloud/` 与本仓库自写文档的原创部分采用根目录 MIT 许可；上述第三方内容维持各自许可证。此仓库与 Google、Upstash、OrionTV、LunaTV 官方没有隶属关系。

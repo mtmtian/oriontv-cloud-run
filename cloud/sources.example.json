@@ -26,6 +26,26 @@
     "guovin": {
       "name": "Guovin 公共直播 IPv4",
       "url": "https://guovin.github.io/iptv-api/ipv4.m3u"
+    },
+    "iptv-org-tw": {
+      "name": "iptv-org 台湾频道",
+      "url": "https://iptv-org.github.io/iptv/countries/tw.m3u"
+    },
+    "iptv-org-zho": {
+      "name": "iptv-org 中文频道",
+      "url": "https://iptv-org.github.io/iptv/languages/zho.m3u"
+    },
+    "iptv-org-hk": {
+      "name": "iptv-org 香港频道",
+      "url": "https://iptv-org.github.io/iptv/countries/hk.m3u"
+    },
+    "iptv-org-sg": {
+      "name": "iptv-org 新加坡频道",
+      "url": "https://iptv-org.github.io/iptv/countries/sg.m3u"
+    },
+    "iptv-org-my": {
+      "name": "iptv-org 马来西亚频道",
+      "url": "https://iptv-org.github.io/iptv/countries/my.m3u"
     }
   },
   "custom_category": []
