@@ -3,7 +3,7 @@
 import { getConfig } from "@/lib/config";
 import { db } from "@/lib/db";
 
-const defaultUA = 'AptvPlayer/1.4.10'
+export const defaultUA = 'AptvPlayer/1.4.10'
 
 export interface LiveChannels {
   channelNumber: number;

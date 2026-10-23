@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Prompt without echo; send secret values only over the subprocess stdin pipe."""
+import base64
 import getpass
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -14,6 +16,8 @@ def setup():
         ('lunatv-upstash-url','Upstash Redis REST URL',True),
         ('lunatv-upstash-token','Upstash Redis REST token',True),
         ('lunatv-tv-password','New projector user password',False),
+        # Generated, not prompted: OrionTV sends it in the live playlist URL.
+        ('lunatv-live-token',None,True),
     ]:
         # Existing values are kept; rotating credentials is a separate explicit operation.
         existing=cli('secrets','describe',name,f'--project={PROJECT}',optional=True)
@@ -21,7 +25,7 @@ def setup():
         if versions and versions[0].get('state') != 'ENABLED':
             raise RuntimeError(f'{name}: newest version is not enabled; resolve explicitly before deployment')
         if not versions:
-            value=getpass.getpass(label+': ')
+            value=getpass.getpass(label+': ') if label else base64.urlsafe_b64encode(os.urandom(24)).decode()
             if not value:raise ValueError('Empty value rejected')
             if existing is None:cli('secrets','create',name,f'--project={PROJECT}','--replication-policy=automatic')
             done=subprocess.run(['gcloud','secrets','versions','add',name,f'--project={PROJECT}','--data-file=-','--quiet'],input=value,text=True,capture_output=True)

@@ -28,11 +28,12 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 - Add sources to an existing service with `configure_service.py --add-sources <json>`; the default import replaces configuration. Preserve source permissions and private state.
 - Retain ignored deployment/rollback receipts during cleanup; physical playback of newly added sources remains separate from API verification.
 - Videos stay client-direct; preserve DISABLE_VIDEO_PROXY and DISABLE_BACKGROUND_JOBS.
+- `/api/live/playlist` serves playlist text only and stays gated by LIVE_PLAYLIST_TOKEN. App code must not log its URL; Cloud Run request logs still record the query string, as documented.
 - USD 5 is a protection threshold, not a strict final-bill ceiling.
 - Monthly recovery must preserve user-initiated pauses and stop at expiry.
 - Billing unlink must remain project-scoped and gated by both real time and IAM.
 - Never test expiry by actually unlinking billing before its authorized deadline.
-- Do not print/export credentials, cookies, private subscriptions or service-account keys.
+- Do not print/export credentials, cookies, private subscriptions or service-account keys. The one exception is `configure_service.py --live-url`, which prints the TV playlist URL only when explicitly run.
 - Keep actual project/account/device identifiers and local paths out of public commits.
 - Preserve the CC BY-NC-SA license of LunaTV; root MIT does not override it.
 

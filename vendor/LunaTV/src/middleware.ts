@@ -125,6 +125,11 @@ function handleAuthFailure(
 
 // 判断是否需要跳过认证的路径
 function shouldSkipAuth(pathname: string): boolean {
+  // OrionTV cannot send cookies for its M3U URL; the route checks its own token.
+  if (pathname === '/api/live/playlist') {
+    return true;
+  }
+
   const skipPaths = [
     '/_next',
     '/favicon.ico',
