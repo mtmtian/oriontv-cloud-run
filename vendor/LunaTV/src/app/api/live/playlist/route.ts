@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config';
 import { defaultUA } from '@/lib/live';
 import {
   type PlaylistSource,
+  isPlaylist,
   mergePlaylists,
   tokenMatches,
 } from '@/lib/live-playlist';
@@ -21,7 +22,7 @@ const MAX_LIST_BYTES = 5 * 1024 * 1024;
 type Live = { key: string; name: string; url: string; ua?: string };
 
 let cached: { key: string; body: string; expiresAt: number } | null = null;
-// Last successful download per list, used when a refresh of that list fails.
+// Last valid download per list, used when a refresh of that list fails.
 const lastGood = new Map<string, string>();
 
 async function readCapped(response: Response): Promise<string | null> {
@@ -49,8 +50,10 @@ async function download(live: Live): Promise<string | null> {
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const text = response.ok ? await readCapped(response) : null;
-    if (text === null) {
-      console.warn(`live playlist ${live.key}: HTTP ${response.status} or over size limit`);
+    // A 200 maintenance or login page must not replace the last good copy.
+    if (text === null || !isPlaylist(text)) {
+      console.warn(`live playlist ${live.key}: HTTP ${response.status}, oversized or not a playlist`);
+      return null;
     }
     return text;
   } catch (error) {

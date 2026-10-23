@@ -8,6 +8,17 @@ sys.path.insert(0,str(Path(__file__).parent/'cost-guard'))
 from config import PROJECT, REGION, REPO, CONFIG
 from deploy import cli
 
+# The TV playlist token travels in the query string; keep these request logs out of storage.
+LIVE_LOG_EXCLUSION='lunatv-live-playlist'
+LIVE_LOG_FILTER='resource.type="cloud_run_revision" AND resource.labels.service_name="lunatv" AND httpRequest.requestUrl:"/api/live/playlist"'
+
+def exclude_live_playlist_logs():
+    sink=cli('logging','sinks','describe','_Default',f'--project={PROJECT}')
+    current={e.get('name'):e.get('filter') for e in sink.get('exclusions') or []}
+    if current.get(LIVE_LOG_EXCLUSION)==LIVE_LOG_FILTER:return
+    flag='--update-exclusion' if LIVE_LOG_EXCLUSION in current else '--add-exclusion'
+    cli('logging','sinks','update','_Default',f'--project={PROJECT}',f'{flag}=name={LIVE_LOG_EXCLUSION},filter={LIVE_LOG_FILTER}')
+
 def deploy():
     admin=CONFIG['admin_username']
     import re
@@ -22,6 +33,8 @@ def deploy():
     assert result['status']=='SUCCESS', 'Cloud Build did not succeed'
     built=result['results']['images'][0]
     digest_image=image.rsplit(':',1)[0]+'@'+built['digest']
+    # Exclude before the revision that serves the playlist endpoint goes live.
+    exclude_live_playlist_logs()
     cli('run','deploy','lunatv',f'--project={PROJECT}',f'--region={REGION}',f'--image={digest_image}',
         f'--service-account=lunatv-runtime@{PROJECT}.iam.gserviceaccount.com',
         '--cpu=1','--memory=512Mi','--concurrency=20','--min=0','--max=1','--cpu-throttling',
