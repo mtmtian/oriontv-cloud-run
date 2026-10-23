@@ -8,6 +8,7 @@
 - 许可证：[CC BY-NC-SA 4.0 原文](vendor/LunaTV/LICENSE)。保留署名、非商业与相同方式共享条件；本仓库根目录 MIT 许可不覆盖该源码。
 - 本次修改：`src/middleware.ts` 增加关闭媒体代理的开关；`src/app/api/cron/route.ts` 增加禁用 cron 开关；`start.js` 在禁用后台任务时跳过进程定时器；补充 `.gcloudignore`。
 - LunaTV 的上述衍生改动沿用 CC BY-NC-SA 4.0。
+- 后续修改：`src/lib/exact-title-search.ts` 和 OrionTV 单源查询增加标题空格归一化与一次去空格重试；对应回归测试位于 `tests/exact-title-search.test.mjs`，同样沿用 CC BY-NC-SA 4.0。
 
 ## 客户端与节目来源
 

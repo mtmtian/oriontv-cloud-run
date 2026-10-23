@@ -1,0 +1,19 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  title-search:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --experimental-strip-types --test vendor/LunaTV/tests/*.test.mjs
+      - run: python3 -m json.tool cloud/sources.example.json > /dev/null
+      - run: python3 -B cloud/test_add_sources.py
+      - run: git diff --check
