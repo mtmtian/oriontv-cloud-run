@@ -16,6 +16,7 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 
 ## Verification
 
+- Source/title regression: `node --experimental-strip-types --test vendor/LunaTV/tests/*.test.mjs` (Node 24) and `python3 -B cloud/test_add_sources.py`; these run offline.
 - `python3 -B cloud/cost-guard/check.py` checks source and live metadata.
 - `python3 -B cloud/cost-guard/test_guard.py` runs 18 cloud dry-run cases.
 - Both need existing private configuration and authenticated Google Cloud CLI.
@@ -24,6 +25,8 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 
 ## Invariants
 
+- Add sources to an existing service with `configure_service.py --add-sources <json>`; the default import replaces configuration. Preserve source permissions and private state.
+- Retain ignored deployment/rollback receipts during cleanup; physical playback of newly added sources remains separate from API verification.
 - Videos stay client-direct; preserve DISABLE_VIDEO_PROXY and DISABLE_BACKGROUND_JOBS.
 - USD 5 is a protection threshold, not a strict final-bill ceiling.
 - Monthly recovery must preserve user-initiated pauses and stop at expiry.
