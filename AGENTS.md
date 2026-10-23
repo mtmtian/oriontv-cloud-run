@@ -25,6 +25,7 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 ## Invariants
 
 - Videos stay client-direct; preserve DISABLE_VIDEO_PROXY and DISABLE_BACKGROUND_JOBS.
+- `/api/live/playlist` serves playlist text only, stays gated by LIVE_PLAYLIST_TOKEN, and must not log its URL.
 - USD 5 is a protection threshold, not a strict final-bill ceiling.
 - Monthly recovery must preserve user-initiated pauses and stop at expiry.
 - Billing unlink must remain project-scoped and gated by both real time and IAM.

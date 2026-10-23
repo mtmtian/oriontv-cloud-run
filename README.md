@@ -10,7 +10,8 @@ flowchart LR
     CR -->|元数据查询| VOD[点播 API]
     CR --> DB[Upstash Redis / Free]
     TV -->|视频直连| Media[视频 / 直播服务器]
-    TV -->|直播节目列表| M3U[公共或自备 M3U]
+    TV -->|合并直播列表| CR
+    CR -->|拉取直播列表| M3U[公共或自备 M3U]
     Budget[项目 USD 5 预算] --> PubSub[Pub/Sub + Eventarc]
     PubSub --> Guard[Workflows 费用保护]
     Scheduler[每日核对 / 到期任务] --> Guard
@@ -25,6 +26,7 @@ flowchart LR
 | Cloud Run | `asia-east1`，1 CPU / 512 MiB，按请求计费，最小 0 / 最大 1 实例，并发 20 |
 | 视频中转 | 禁止 `/api/proxy/m3u8`、`segment`、`key`；投影仪直连 |
 | 后台任务 | 禁用进程内定时任务与 `/api/cron` |
+| 直播列表 | 后端把启用的 `lives` 合并成一个 M3U，电视用带 token 的地址读取；视频仍由电视直连 |
 | 数据库 | 独立 Upstash Redis，使用 REST API；原部署为 Free 计划 |
 | 月度保护 | USD 5，排除 credits；Cloud Run 原生 Spend Cap + 整个项目预算事件 |
 | 跨月恢复 | 太平洋时间每天 00:10，仅恢复上月被预算保护暂停的服务 |
@@ -44,7 +46,7 @@ flowchart LR
 
 ## 仓库结构
 
-- `vendor/LunaTV/`：固定提交的完整运行源码，含直连/禁后台任务及标题匹配改动，详见来源说明。
+- `vendor/LunaTV/`：固定提交的完整运行源码，含直连/禁后台任务、标题匹配及直播列表合并改动，详见来源说明。
 - `cloud/`：非秘密配置模板、云端初始化/部署脚本、来源示例。
 - `cloud/cost-guard/`：预算、工作流、IAM、定时任务与只读演练。
 - `docs/`：部署、接入、恢复与验证说明。

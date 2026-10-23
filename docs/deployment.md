@@ -24,14 +24,15 @@ python3 cloud/bootstrap.py
 python3 cloud/secrets.py
 ```
 
-后者用不回显的提示读取管理员密码、Upstash 两项和电视用户密码。秘密值通过标准输入交给 Secret Manager，不写入本地文件、不进入命令行参数。已有启用版本会保留，不自动轮换密码。原有 Upstash 数据库的账号与数据不会被迁移。
+后者用不回显的提示读取管理员密码、Upstash 两项和电视用户密码，并随机生成直播合并地址的 token。秘密值通过标准输入交给 Secret Manager，不写入本地文件、不进入命令行参数。已有启用版本会保留，不自动轮换密码。原有 Upstash 数据库的账号与数据不会被迁移。
 
-运行身份只获得三个运行所需秘密的读取权；构建身份只有镜像仓库写入、构建桶读取与日志写入。四个 Secret Manager 条目的名字固定为：
+运行身份只获得四个运行所需秘密的读取权；构建身份只有镜像仓库写入、构建桶读取与日志写入。五个 Secret Manager 条目的名字固定为：
 
 - `lunatv-admin-password`
 - `lunatv-upstash-url`
 - `lunatv-upstash-token`
 - `lunatv-tv-password`（用于初始化普通电视用户，不提供给运行容器）
+- `lunatv-live-token`（直播合并地址的访问 token，自动生成）
 
 ## 3. 构建与部署
 
@@ -74,13 +75,21 @@ python3 cloud/configure_service.py
 python3 cloud/configure_service.py --add-sources cloud/sources.example.json
 ```
 
-增量模式只调用后台的单源添加接口：相同 key、相同 API 的源跳过，不改变原有名称、禁用状态或顺序；相同 key 指向不同 API 时在写入前报错。直播、订阅、用户、收藏及进度不由此模式修改。批次不是事务；中途失败时已添加的源保留，重新核对后再次执行会跳过它们。新增源不会扩大已有用户/用户组的显式源权限白名单，需要管理员按实际需求另行授权。
-
-已有部署补充直播列表时，把需要的 `lives` 条目加进 `.local/sources.json`，再运行不带参数的 `configure_service.py` 默认导入。
+增量模式只调用后台的点播源和直播源单项添加接口：相同 key、相同地址的条目跳过，不改变原有名称、禁用状态或顺序；相同 key 指向不同地址时在写入前报错。订阅、用户、收藏及进度不由此模式修改。批次不是事务；中途失败时已添加的源保留，重新核对后再次执行会跳过它们。新增源不会扩大已有用户/用户组的显式源权限白名单，需要管理员按实际需求另行授权。
 
 `configure_service.py` 会从 Cloud Run 查询并验证后端地址，然后在内存中用管理员登录，导入来源，并在缺少时创建普通用户 `projector`。已有用户不会被重置密码。它不会打印来源正文、密码或登录 cookie。电视端设置见 [OrionTV 接入](oriontv.md)。
 
 私密源或订阅只放 `.local/sources.json`；不要改公开示例后直接提交。脚本不会抓取或打包影片文件。
+
+## 6. 电视直播地址
+
+```sh
+python3 cloud/configure_service.py --live-url
+```
+
+打印 OrionTV 直播设置要填的合并地址，详见 [OrionTV 接入](oriontv.md)。OrionTV 只能读一个 M3U 地址且不能带登录状态，所以 token 放在地址的查询参数里；这个地址等同于直播列表的访问凭据，不要公开，它也会出现在 Cloud Run 的请求日志中。要更换 token，在 Secret Manager 给 `lunatv-live-token` 添加新版本后重新运行部署，再在电视上换成新地址。
+
+已有部署启用该地址：先运行 `cloud/secrets.py`（只新建缺少的 token，已有秘密不变），再运行 `cloud/deploy_service.py` 重新构建部署，然后用上面的增量模式补充直播列表。
 
 ## 恢复部署
 

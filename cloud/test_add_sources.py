@@ -60,4 +60,57 @@ class SourceAdditionsTest(unittest.TestCase):
         self.assertEqual(len(self.writes),1)
 
 
+class LiveAdditionsTest(unittest.TestCase):
+    def setUp(self):
+        self.original={'key':'guovin','name':'Guovin','url':'https://guovin.example/ipv4.m3u','disabled':True,'from':'config'}
+        self.config={'SourceConfig':[],'LiveConfig':[copy.deepcopy(self.original)]}
+        self.writes=[]
+
+    def request(self,path,data=None):
+        if path=='/api/admin/config':
+            return {'Config':copy.deepcopy(self.config)}
+        section={'/api/admin/source':'SourceConfig','/api/admin/live':'LiveConfig'}[path]
+        self.writes.append((path,data))
+        self.config[section].append({k:v for k,v in data.items() if k!='action'})
+        return {'ok':True} if section=='SourceConfig' else {'success':True}
+
+    def test_adds_missing_lists_in_order_and_is_repeatable(self):
+        candidates={'lives':{
+            'guovin':{'name':'Renamed','url':self.original['url']},
+            'tw':{'name':'Taiwan','url':'https://tw.example/tw.m3u','ua':'TestUA'},
+            'zho':{'name':'Chinese','url':'https://zho.example/zho.m3u'}}}
+        add_sources(self.request,candidates)
+        add_sources(self.request,candidates)
+        self.assertEqual([body['key'] for _,body in self.writes],['tw','zho'])
+        self.assertEqual(self.writes[0],('/api/admin/live',{'action':'add','key':'tw','name':'Taiwan','url':'https://tw.example/tw.m3u','ua':'TestUA'}))
+        self.assertEqual(self.config['LiveConfig'][0],self.original)
+
+    def test_vod_and_live_entries_are_added_together(self):
+        add_sources(self.request,{
+            'api_site':{'vod':{'name':'VOD','api':'https://vod.example/api'}},
+            'lives':{'tw':{'name':'Taiwan','url':'https://tw.example/tw.m3u'}}})
+        self.assertEqual([path for path,_ in self.writes],['/api/admin/source','/api/admin/live'])
+
+    def test_invalid_or_conflicting_list_blocks_every_write(self):
+        for live in [{'name':'Insecure','url':'http://tw.example/tw.m3u'},{'name':'No URL'},
+                     {'name':'Changed','url':'https://changed.example/ipv4.m3u'}]:
+            key='guovin' if live['name']=='Changed' else 'bad'
+            with self.subTest(live=live),self.assertRaises(ValueError):
+                add_sources(self.request,{
+                    'api_site':{'vod':{'name':'VOD','api':'https://vod.example/api'}},
+                    'lives':{'tw':{'name':'Taiwan','url':'https://tw.example/tw.m3u'},key:live}})
+        self.assertEqual(self.writes,[])
+
+    def test_rejected_list_stops_the_batch(self):
+        def reject(path,data=None):
+            if data is None:return self.request(path)
+            self.writes.append((path,data))
+            return {'success':False}
+        with self.assertRaises(RuntimeError):
+            add_sources(reject,{'lives':{
+                'one':{'name':'One','url':'https://one.example/one.m3u'},
+                'two':{'name':'Two','url':'https://two.example/two.m3u'}}})
+        self.assertEqual(len(self.writes),1)
+
+
 if __name__=='__main__':unittest.main()

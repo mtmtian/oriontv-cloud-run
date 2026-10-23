@@ -27,7 +27,7 @@ def deploy():
         '--cpu=1','--memory=512Mi','--concurrency=20','--min=0','--max=1','--cpu-throttling',
         '--no-cpu-boost','--timeout=60','--port=3000','--allow-unauthenticated',
         '--set-env-vars=NEXT_PUBLIC_STORAGE_TYPE=upstash,USERNAME='+admin+',NEXT_PUBLIC_SITE_NAME=HomeTV,NEXT_PUBLIC_SEARCH_MAX_PAGE=1,NEXT_PUBLIC_DOUBAN_PROXY_TYPE=direct,NEXT_PUBLIC_DOUBAN_IMAGE_PROXY_TYPE=direct,DISABLE_VIDEO_PROXY=true,DISABLE_BACKGROUND_JOBS=true',
-        '--set-secrets=PASSWORD=lunatv-admin-password:latest,UPSTASH_URL=lunatv-upstash-url:latest,UPSTASH_TOKEN=lunatv-upstash-token:latest')
+        '--set-secrets=PASSWORD=lunatv-admin-password:latest,UPSTASH_URL=lunatv-upstash-url:latest,UPSTASH_TOKEN=lunatv-upstash-token:latest,LIVE_PLAYLIST_TOKEN=lunatv-live-token:latest')
     service=cli('run','services','describe','lunatv',f'--project={PROJECT}',f'--region={REGION}')
     saved={'service_url':service['status']['url'],'image':digest_image,'build_id':result['id']}
     (REPO/'.local/service.json').write_text(json.dumps(saved,indent=2)+'\n')

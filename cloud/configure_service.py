@@ -5,8 +5,9 @@ import http.cookiejar
 import json
 import subprocess
 import sys
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent/'cost-guard'))
 from config import PROJECT, CONFIG, REPO
@@ -17,36 +18,48 @@ def secret(name):
     if p.returncode:raise RuntimeError('Cannot read required secret: '+name)
     return p.stdout
 
+# api_site and lives use different admin endpoints, link fields and success flags.
+KINDS=[('api_site','SourceConfig','api','/api/admin/source','ok'),
+       ('lives','LiveConfig','url','/api/admin/live','success')]
+
 def add_sources(request, sources):
-    """Add missing sources; never replace configuration or change existing entries."""
-    candidates=sources.get('api_site')
-    if not isinstance(candidates,dict) or not candidates:
-        raise ValueError('Expected a non-empty api_site object')
-    current=request('/api/admin/config')['Config']['SourceConfig']
-    by_key={source['key']:source for source in current}
+    """Add missing VOD and live sources; never replace configuration or change existing entries."""
+    kinds=[kind for kind in KINDS if sources.get(kind[0]) is not None]
+    if not kinds or any(not isinstance(sources[kind[0]],dict) or not sources[kind[0]] for kind in kinds):
+        raise ValueError('Expected a non-empty api_site or lives object')
+    config=request('/api/admin/config')['Config']
     pending=[]
-    for key, source in candidates.items():
-        if not isinstance(source,dict) or not all(isinstance(v,str) and v.strip() for v in (key,source.get('name'),source.get('api'))):
-            raise ValueError('Every source needs a non-empty key, name and api')
-        if not source['api'].startswith('https://'):
-            raise ValueError('Source additions require HTTPS')
-        if key in by_key:
-            if by_key[key]['api'] != source['api']:
-                raise ValueError('An existing source key has a different API; no changes made')
-            continue
-        pending.append({'action':'add','key':key,'name':source['name'],'api':source['api']})
+    for field,section,link,path,flag in kinds:
+        by_key={item['key']:item for item in config.get(section) or []}
+        for key, source in sources[field].items():
+            if not isinstance(source,dict) or not all(isinstance(v,str) and v.strip() for v in (key,source.get('name'),source.get(link))):
+                raise ValueError(f'Every {field} entry needs a non-empty key, name and {link}')
+            if not source[link].startswith('https://'):
+                raise ValueError('Source additions require HTTPS')
+            if key in by_key:
+                if by_key[key][link] != source[link]:
+                    raise ValueError(f'An existing {field} key has a different {link}; no changes made')
+                continue
+            body={'action':'add','key':key,'name':source['name'],link:source[link]}
+            body.update({k:source[k] for k in ('ua','epg') if field=='lives' and source.get(k)})
+            pending.append((field,path,flag,body))
     # Validate the entire batch before the first write. Retry safely skips additions
     # already completed if a later request fails; it never resets existing sources.
-    for body in pending:
-        if not request('/api/admin/source',body).get('ok'):
+    for field,path,flag,body in pending:
+        if not request(path,body).get(flag):
             raise RuntimeError('Source addition failed; recheck current configuration before retrying')
-    print(f'Added {len(pending)} sources; existing entries and other settings were preserved.')
+    added=', '.join(f'{sum(p[0]==field for p in pending)} {field}' for field,*_ in kinds)
+    print(f'Added {added} entries; existing entries and other settings were preserved.')
 
-def configure(additions=None):
+def service_url():
     # Discover the trusted service URL instead of sending credentials to a file-supplied URL.
     service=cli('run','services','describe','lunatv',f'--project={PROJECT}',f'--region={CONFIG["region"]}')
     base=service['status']['url']
     assert base.startswith('https://')
+    return base
+
+def configure(additions=None):
+    base=service_url()
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     client=urllib.request.build_opener(NoRedirect(),urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
@@ -69,5 +82,11 @@ def configure(additions=None):
     print('Source settings imported; projector user exists. Credentials were not printed or saved locally.')
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--add-sources',type=Path,help='Add missing api_site entries from this JSON without replacing other settings')
-    configure(parser.parse_args().add_sources)
+    mode=parser.add_mutually_exclusive_group()
+    mode.add_argument('--add-sources',type=Path,help='Add missing api_site and lives entries from this JSON without replacing other settings')
+    mode.add_argument('--live-url',action='store_true',help='Print the merged live playlist URL for OrionTV; it contains an access token')
+    args=parser.parse_args()
+    if args.live_url:
+        print(service_url()+'/api/live/playlist?token='+urllib.parse.quote(secret('lunatv-live-token').strip()))
+    else:
+        configure(args.add_sources)
