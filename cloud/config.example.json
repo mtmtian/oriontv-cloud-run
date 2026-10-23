@@ -1,0 +1,9 @@
+{
+  "project_id": "your-dedicated-tv-project",
+  "region": "asia-east1",
+  "billing_account": "XXXXXX-XXXXXX-XXXXXX",
+  "expiry_utc": "2027-10-21T16:00:00Z",
+  "monthly_usd": 5,
+  "service": "lunatv",
+  "admin_username": "homeadmin"
+}

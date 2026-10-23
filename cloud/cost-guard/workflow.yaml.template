@@ -1,0 +1,287 @@
+# Only this project's LunaTV service is controlled. Credentials are supplied by IAM.
+main:
+  params: [input]
+  steps:
+    - init:
+        assign:
+          - dryRun: ${default(map.get(input, "dryRun"), false)}
+          - event: ${default(map.get(input, "event"), input)}
+    - runWithRetry:
+        try:
+          call: controller
+          args:
+            input: ${input}
+            event: ${event}
+            dryRun: ${dryRun}
+          result: outcome
+        retry:
+          predicate: ${retryable}
+          max_retries: 6
+          backoff:
+            initial_delay: 2
+            max_delay: 60
+            multiplier: 2
+    - finish:
+        return: ${outcome}
+
+# The real deadline is checked before reading Cloud Run: expiry must also work if
+# the service has been deleted or cannot be updated. IAM independently time-gates unlinking.
+controller:
+  params: [input, event, dryRun]
+  steps:
+    - route:
+        switch:
+          - condition: ${map.get(input, "action") == "billing-check"}
+            next: readiness
+          - condition: ${not dryRun and sys.now() >= time.parse("@@EXPIRY@@")}
+            next: unlinkBilling
+        next: normalOperation
+    - readiness:
+        call: billing_readiness
+        result: check
+    - checked:
+        return: ${check}
+    - unlinkBilling:
+        call: http.put
+        args:
+          url: https://cloudbilling.googleapis.com/v1/projects/@@PROJECT@@/billingInfo
+          auth:
+            type: OAuth2
+          body:
+            billingAccountName: ""
+        result: unlinked
+    - verifyUnlinked:
+        switch:
+          - condition: ${default(map.get(unlinked.body, "billingEnabled"), false)}
+            raise:
+              code: 503
+              message: Billing unlink did not report disabled status
+    - expired:
+        return:
+          action: disable-billing
+          reason: expired
+          billingEnabled: false
+    - normalOperation:
+        call: reconcile
+        args:
+          input: ${input}
+          event: ${event}
+          dryRun: ${dryRun}
+        result: normal
+    - normalResult:
+        return: ${normal}
+
+billing_readiness:
+  steps:
+    - readBilling:
+        call: http.get
+        args:
+          url: https://cloudbilling.googleapis.com/v1/projects/@@PROJECT@@/billingInfo
+          auth:
+            type: OAuth2
+        result: billing
+    - testPermissions:
+        call: http.post
+        args:
+          url: https://cloudresourcemanager.googleapis.com/v1/projects/@@PROJECT@@:testIamPermissions
+          auth:
+            type: OAuth2
+          body:
+            permissions: [resourcemanager.projects.get, resourcemanager.projects.deleteBillingAssignment]
+        result: permissions
+    - result:
+        return:
+          billingEnabled: ${default(map.get(billing.body, "billingEnabled"), false)}
+          permissionsNow: ${default(map.get(permissions.body, "permissions"), [])}
+          expiryUtc: "@@EXPIRY@@"
+          expiryReached: ${sys.now() >= time.parse("@@EXPIRY@@")}
+
+reconcile:
+  params: [input, event, dryRun]
+  steps:
+    - init:
+        assign:
+          - now: ${sys.now()}
+          - serviceUrl: https://run.googleapis.com/v2/projects/@@PROJECT@@/locations/@@REGION@@/services/lunatv
+    - chooseState:
+        switch:
+          - condition: ${dryRun}
+            steps:
+              - fixture:
+                  assign:
+                    - now: ${time.parse(input.testNow)}
+                    - service: ${input.testService}
+            next: decide
+    - readService:
+        call: http.get
+        args:
+          url: ${serviceUrl}
+          auth:
+            type: OAuth2
+        result: response
+    - liveState:
+        assign:
+          - service: ${response.body}
+          - now: ${sys.now()}
+    - decide:
+        call: decision
+        args:
+          event: ${event}
+          service: ${service}
+          now: ${now}
+        result: plan
+    - noMutation:
+        switch:
+          - condition: ${dryRun or plan.action == "none"}
+            return: ${plan}
+    - patchService:
+        call: http.patch
+        args:
+          url: ${serviceUrl}
+          query:
+            updateMask: scaling,labels
+          auth:
+            type: OAuth2
+          body:
+            etag: ${service.etag}
+            scaling: ${plan.scaling}
+            labels: ${plan.labels}
+        result: operation
+    - pollInit:
+        assign:
+          - polls: 0
+    - waitForChange:
+        call: http.get
+        args:
+          url: ${"https://run.googleapis.com/v2/" + operation.body.name}
+          auth:
+            type: OAuth2
+        result: completed
+    - countPoll:
+        assign:
+          - polls: ${polls + 1}
+    - checkChange:
+        switch:
+          - condition: ${polls > 60}
+            raise:
+              code: 503
+              message: Cloud Run scaling operation timed out
+          - condition: ${map.get(completed.body, "error") != null}
+            raise: ${completed.body.error}
+          - condition: ${not default(map.get(completed.body, "done"), false)}
+            steps:
+              - wait:
+                  call: sys.sleep
+                  args:
+                    seconds: 2
+            next: waitForChange
+          - condition: ${plan.reason == "expired"}
+            next: finishChange
+        next: finishChange
+    - finishChange:
+        return: ${plan}
+
+decision:
+  params: [event, service, now]
+  steps:
+    - init:
+        assign:
+          - month: ${text.substring(time.format(now, "America/Los_Angeles"), 0, 7)}
+          - labels: ${default(map.get(service, "labels"), json.decode("{}"))}
+          - scaling: ${default(map.get(service, "scaling"), json.decode("{}"))}
+          - reason: none
+    - expiryFirst:
+        switch:
+          - condition: ${now >= time.parse("@@EXPIRY@@") or map.get(labels, "tv-guard-reason") == "expired"}
+            assign:
+              - reason: expired
+            next: pause
+          - condition: ${map.get(event, "type") == "google.cloud.pubsub.topic.v1.messagePublished"}
+            next: validateBudget
+          - condition: ${map.get(event, "action") == "reconcile"}
+            next: monthlyResume
+        next: noChange
+    - validateBudget:
+        try:
+          steps:
+            - identifiers:
+                switch:
+                  - condition: ${map.get(event, "source") != "//pubsub.googleapis.com/projects/@@PROJECT@@/topics/jmgo-tv-budget" or event.data.message.attributes.billingAccountId != "@@ACCOUNT@@" or event.data.message.attributes.budgetId != "@@BUDGET@@" or event.data.message.attributes.schemaVersion != "1.0"}
+                    return:
+                      action: none
+                      reason: unrecognized-budget
+            - decode:
+                assign:
+                  - budget: ${json.decode(base64.decode(event.data.message.data))}
+                  - periodStart: ${time.format(time.parse(budget.costIntervalStart), "America/Los_Angeles")}
+            - amountAndPeriod:
+                switch:
+                  - condition: ${budget.currencyCode != "USD" or budget.budgetAmount != 5 or budget.budgetAmountType != "SPECIFIED_AMOUNT" or text.substring(periodStart, 0, 7) != month or text.substring(periodStart, 8, 19) != "01T00:00:00"}
+                    return:
+                      action: none
+                      reason: wrong-period-or-budget
+                  - condition: ${budget.costAmount >= 5}
+                    assign:
+                      - reason: budget
+                    next: pause
+        except:
+          as: error
+          steps:
+            - badMessage:
+                return:
+                  action: none
+                  reason: malformed-budget
+        next: noChange
+    - monthlyResume:
+        switch:
+          - condition: ${map.get(labels, "tv-guard-reason") == "budget" and int(text.replace_all(default(map.get(labels, "tv-guard-month"), month), "-", "")) < int(text.replace_all(month, "-", "")) and map.get(scaling, "scalingMode") == "MANUAL" and default(map.get(scaling, "manualInstanceCount"), 0) == 0}
+            steps:
+              - restore:
+                  assign:
+                    - scaling:
+                        scalingMode: AUTOMATIC
+                        minInstanceCount: 0
+                        maxInstanceCount: 1
+                    - labels["tv-guard-reason"]: active
+                    - labels["tv-guard-month"]: ${month}
+              - resumePlan:
+                  return:
+                    action: resume
+                    reason: new-month
+                    scaling: ${scaling}
+                    labels: ${labels}
+        next: noChange
+    - preserveExistingPause:
+        switch:
+          - condition: ${reason == "budget" and map.get(scaling, "scalingMode") == "MANUAL" and default(map.get(scaling, "manualInstanceCount"), 0) == 0 and (map.get(labels, "tv-guard-reason") != "budget" or map.get(labels, "tv-guard-month") == month)}
+            return:
+              action: none
+              reason: already-paused
+        next: applyPause
+    - pause:
+        next: preserveExistingPause
+        assign:
+          - reason: ${reason}
+    - applyPause:
+        assign:
+          - scaling.scalingMode: MANUAL
+          - scaling.manualInstanceCount: 0
+          - labels["tv-guard-reason"]: ${reason}
+          - labels["tv-guard-month"]: ${month}
+    - pausePlan:
+        return:
+          action: pause
+          reason: ${reason}
+          disableBilling: ${reason == "expired" and now >= time.parse("@@EXPIRY@@")}
+          scaling: ${scaling}
+          labels: ${labels}
+    - noChange:
+        return:
+          action: none
+          reason: below-threshold-or-no-change
+
+retryable:
+  params: [e]
+  steps:
+    - check:
+        return: ${map.get(e, "code") in [409, 429, 500, 502, 503, 504] or "ConnectionError" in default(map.get(e, "tags"), [])}

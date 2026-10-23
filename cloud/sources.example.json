@@ -1,0 +1,20 @@
+{
+  "cache_time": 7200,
+  "api_site": {
+    "liangzi": {
+      "name": "量子影视",
+      "api": "https://cj.lziapi.com/api.php/provide/vod"
+    },
+    "guangsu": {
+      "name": "光速资源",
+      "api": "https://api.guangsuapi.com/api.php/provide/vod"
+    }
+  },
+  "lives": {
+    "guovin": {
+      "name": "Guovin 公共直播 IPv4",
+      "url": "https://guovin.github.io/iptv-api/ipv4.m3u"
+    }
+  },
+  "custom_category": []
+}

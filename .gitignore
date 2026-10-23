@@ -1,0 +1,14 @@
+.local/
+.env
+.env.*
+!.env.example
+**/node_modules/
+**/.next/
+**/__pycache__/
+*.pyc
+*.pem
+*.key
+*.p12
+*.log
+*.apk
+.DS_Store

@@ -1,0 +1,80 @@
+import { NextResponse } from 'next/server';
+
+import { checkImageProxyTarget, isImageContentType } from '@/lib/proxy-guard';
+
+export const runtime = 'nodejs';
+
+// OrionTV 兼容接口
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const imageUrl = searchParams.get('url');
+
+  if (!imageUrl) {
+    return NextResponse.json({ error: 'Missing image URL' }, { status: 400 });
+  }
+
+  // 只允许代理公网 http(s) 图片，避免被用来探测内网服务
+  const invalidReason = checkImageProxyTarget(imageUrl);
+  if (invalidReason) {
+    return NextResponse.json({ error: invalidReason }, { status: 400 });
+  }
+
+  try {
+    const imageResponse = await fetch(imageUrl, {
+      headers: {
+        Referer: 'https://movie.douban.com/',
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+      },
+    });
+
+    if (!imageResponse.ok) {
+      return NextResponse.json(
+        { error: imageResponse.statusText },
+        { status: imageResponse.status }
+      );
+    }
+
+    const contentType = imageResponse.headers.get('content-type');
+
+    // 只转发真正的图片，避免上游返回 HTML 时在本站域名下被当作页面执行
+    if (!isImageContentType(contentType)) {
+      imageResponse.body?.cancel();
+      return NextResponse.json(
+        { error: 'Upstream response is not an image' },
+        { status: 415 }
+      );
+    }
+
+    if (!imageResponse.body) {
+      return NextResponse.json(
+        { error: 'Image response has no body' },
+        { status: 500 }
+      );
+    }
+
+    // 创建响应头
+    const headers = new Headers();
+    if (contentType) {
+      headers.set('Content-Type', contentType);
+    }
+    headers.set('X-Content-Type-Options', 'nosniff');
+
+    // 设置缓存头（可选）
+    headers.set('Cache-Control', 'public, max-age=15720000, s-maxage=15720000'); // 缓存半年
+    headers.set('CDN-Cache-Control', 'public, s-maxage=15720000');
+    headers.set('Vercel-CDN-Cache-Control', 'public, s-maxage=15720000');
+    headers.set('Netlify-Vary', 'query');
+
+    // 直接返回图片流
+    return new Response(imageResponse.body, {
+      status: 200,
+      headers,
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { error: 'Error fetching image' },
+      { status: 500 }
+    );
+  }
+}
