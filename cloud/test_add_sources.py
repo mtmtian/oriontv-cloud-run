@@ -5,7 +5,7 @@ from pathlib import Path
 import unittest
 
 os.environ['TV_CLOUD_CONFIG']=str(Path(__file__).with_name('config.example.json'))
-from configure_service import add_sources
+from configure_service import add_sources, live_playlist_url
 
 
 class SourceAdditionsTest(unittest.TestCase):
@@ -124,6 +124,16 @@ class LiveAdditionsTest(unittest.TestCase):
                 'one':{'name':'One','url':'https://one.example/one.m3u'},
                 'two':{'name':'Two','url':'https://two.example/two.m3u'}}})
         self.assertEqual(len(self.writes),1)
+
+
+class LivePlaylistUrlTest(unittest.TestCase):
+    def test_url_has_no_underscore_and_decodes_to_the_token(self):
+        from urllib.parse import parse_qs, urlsplit
+        token='Ab_cD-9_x'
+        url=live_playlist_url('https://tv.example',token+'\n')
+        self.assertTrue(url.startswith('https://tv.example/api/live/playlist?token='))
+        self.assertNotIn('_',url)
+        self.assertEqual(parse_qs(urlsplit(url).query)['token'],[token])
 
 
 if __name__=='__main__':unittest.main()
