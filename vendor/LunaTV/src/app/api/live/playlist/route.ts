@@ -6,6 +6,7 @@ import { getConfig } from '@/lib/config';
 import { defaultUA } from '@/lib/live';
 import {
   type PlaylistSource,
+  isPlaylist,
   mergePlaylists,
   tokenMatches,
 } from '@/lib/live-playlist';
@@ -21,8 +22,8 @@ const MAX_LIST_BYTES = 5 * 1024 * 1024;
 type Live = { key: string; name: string; url: string; ua?: string };
 
 let cached: { key: string; body: string; expiresAt: number } | null = null;
-// Last successful download per list, used when a refresh of that list fails.
-const lastGood = new Map<string, string>();
+// Last valid download per configured URL, used when a refresh of that list fails.
+const lastGood = new Map<string, PlaylistSource>();
 
 async function readCapped(response: Response): Promise<string | null> {
   const reader = response.body?.getReader();
@@ -42,17 +43,20 @@ async function readCapped(response: Response): Promise<string | null> {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-async function download(live: Live): Promise<string | null> {
+async function download(live: Live): Promise<PlaylistSource | null> {
   try {
     const response = await fetch(live.url, {
       headers: { 'User-Agent': live.ua || defaultUA },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     const text = response.ok ? await readCapped(response) : null;
-    if (text === null) {
-      console.warn(`live playlist ${live.key}: HTTP ${response.status} or over size limit`);
+    // A 200 maintenance or login page must not replace the last good copy.
+    if (text === null || !isPlaylist(text)) {
+      console.warn(`live playlist ${live.key}: HTTP ${response.status}, oversized or not a playlist`);
+      return null;
     }
-    return text;
+    // Relative stream references resolve against the URL after redirects.
+    return { name: live.name, url: response.url || live.url, text };
   } catch (error) {
     console.warn(`live playlist ${live.key}: ${(error as Error).name}`);
     return null;
@@ -72,19 +76,19 @@ export async function GET(request: NextRequest) {
   const key = JSON.stringify(lives.map((l) => [l.name, l.url, l.ua || '']));
 
   if (!cached || cached.key !== key || cached.expiresAt <= Date.now()) {
-    const texts = await Promise.all(lives.map(download));
+    const downloads = await Promise.all(lives.map(download));
     const lists: PlaylistSource[] = [];
-    texts.forEach((text, i) => {
+    downloads.forEach((list, i) => {
       const { name, url } = lives[i];
-      if (text !== null) lastGood.set(url, text);
-      const usable = text ?? lastGood.get(url);
-      if (usable !== undefined) lists.push({ name, url, text: usable });
+      if (list) lastGood.set(url, list);
+      const usable = list ?? lastGood.get(url);
+      if (usable) lists.push({ ...usable, name });
     });
     if (lives.length > 0 && lists.length === 0) {
       return new NextResponse('No live list is reachable', { status: 502 });
     }
     // Retry sooner when some lists were missing or served from the last good copy.
-    const complete = texts.every((text) => text !== null);
+    const complete = downloads.every((list) => list !== null);
     cached = {
       key,
       body: mergePlaylists(lists),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { mergePlaylists, tokenMatches } from '../src/lib/live-playlist.ts';
+import { isPlaylist, mergePlaylists, tokenMatches } from '../src/lib/live-playlist.ts';
 
 const guovin = {
   name: 'Guovin',
@@ -92,4 +92,30 @@ test('token check rejects missing, unset and wrong tokens', () => {
   assert.equal(tokenMatches(null, 'secret-token'), false);
   assert.equal(tokenMatches('secret-token', undefined), false);
   assert.equal(tokenMatches('', ''), false);
+});
+
+test('resolves relative stream references against the list URL', () => {
+  const merged = mergePlaylists([{
+    name: 'Relative',
+    url: 'https://lists.example/a/b/list.m3u',
+    text: [
+      '#EXTINF:-1,Up', '../streams/news.m3u8',
+      '#EXTINF:-1,Root', '/live/news.m3u8',
+      '#EXTINF:-1,Scheme', '//cdn.example/news.m3u8',
+      '#EXTINF:-1,Same', 'https://lists.example/a/streams/news.m3u8',
+      '#EXTINF:-1,Kept', 'http://1.2.3.4:80/a b.m3u8',
+    ].join('\n'),
+  }]);
+  assert.deepEqual(merged.split('\n').filter((l) => l && !l.startsWith('#')), [
+    'https://lists.example/a/streams/news.m3u8',
+    'https://lists.example/live/news.m3u8',
+    'https://cdn.example/news.m3u8',
+    'http://1.2.3.4:80/a b.m3u8',
+  ]);
+});
+
+test('only text with channel entries counts as a playlist', () => {
+  assert.equal(isPlaylist('#EXTM3U\n#EXTINF:-1,A\nhttp://a.example/a.m3u8'), true);
+  assert.equal(isPlaylist('#EXTM3U\n'), false);
+  assert.equal(isPlaylist('<html><body>Maintenance</body></html>'), false);
 });

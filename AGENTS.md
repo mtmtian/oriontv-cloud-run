@@ -16,7 +16,7 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 
 ## Verification
 
-- Source/title regression: `node --experimental-strip-types --test vendor/LunaTV/tests/*.test.mjs` (Node 24) and `python3 -B cloud/test_add_sources.py`; these run offline.
+- Source/title regression: `node --experimental-strip-types --test vendor/LunaTV/tests/*.test.mjs` (Node 24), `python3 -B cloud/test_add_sources.py` and `python3 -B cloud/test_deploy_service.py`; these run offline.
 - `python3 -B cloud/cost-guard/check.py` checks source and live metadata.
 - `python3 -B cloud/cost-guard/test_guard.py` runs 18 cloud dry-run cases.
 - Both need existing private configuration and authenticated Google Cloud CLI.
@@ -28,7 +28,7 @@ Projector desktop, wallpapers, firmware adapters and APKs are outside this repo.
 - Add sources to an existing service with `configure_service.py --add-sources <json>`; the default import replaces configuration. Preserve source permissions and private state.
 - Retain ignored deployment/rollback receipts during cleanup; physical playback of newly added sources remains separate from API verification.
 - Videos stay client-direct; preserve DISABLE_VIDEO_PROXY and DISABLE_BACKGROUND_JOBS.
-- `/api/live/playlist` serves playlist text only and stays gated by LIVE_PLAYLIST_TOKEN. App code must not log its URL; Cloud Run request logs still record the query string, as documented.
+- `/api/live/playlist` serves playlist text only and stays gated by LIVE_PLAYLIST_TOKEN. App code must not log its URL; keep the `lunatv-live-playlist` exclusion that `deploy_service.py` adds to the `_Default` log sink.
 - USD 5 is a protection threshold, not a strict final-bill ceiling.
 - Monthly recovery must preserve user-initiated pauses and stop at expiry.
 - Billing unlink must remain project-scoped and gated by both real time and IAM.

@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from 'node:crypto';
 
 export interface PlaylistSource {
   name: string;
+  /** URL the text was served from, after redirects. */
   url: string;
   text: string;
 }
@@ -29,6 +30,22 @@ function withGroup(extinf: string, group: string): string {
   return extinf;
 }
 
+/** A download counts only if it has at least one channel entry. */
+export function isPlaylist(text: string): boolean {
+  return text.includes('#EXTINF:');
+}
+
+// The TV would resolve a relative reference against this backend, so resolve
+// it against the URL the list was served from. Absolute URLs stay byte-for-byte.
+function streamUrl(line: string, listUrl: string): string | null {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(line)) return line;
+  try {
+    return new URL(line, listUrl).href;
+  } catch {
+    return null;
+  }
+}
+
 /** Merge M3U lists in order; a stream URL seen earlier is not repeated. */
 export function mergePlaylists(sources: PlaylistSource[]): string {
   const seen = new Set<string>();
@@ -45,10 +62,11 @@ export function mergePlaylists(sources: PlaylistSource[]): string {
         continue;
       } else if (line.startsWith('#')) {
         if (!line.startsWith('#EXTM3U')) entry.push(line);
-      } else if (line.includes('://')) {
-        if (!seen.has(line)) {
-          seen.add(line);
-          out.push(...entry, line);
+      } else {
+        const url = streamUrl(line, source.url);
+        if (url && !seen.has(url)) {
+          seen.add(url);
+          out.push(...entry, url);
         }
         entry = null;
       }

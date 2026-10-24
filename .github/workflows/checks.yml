@@ -16,4 +16,5 @@ jobs:
       - run: node --experimental-strip-types --test vendor/LunaTV/tests/*.test.mjs
       - run: python3 -m json.tool cloud/sources.example.json > /dev/null
       - run: python3 -B cloud/test_add_sources.py
+      - run: python3 -B cloud/test_deploy_service.py
       - run: git diff --check
