@@ -87,7 +87,7 @@ python3 cloud/configure_service.py --add-sources cloud/sources.example.json
 python3 cloud/configure_service.py --live-url
 ```
 
-打印 OrionTV 直播设置要填的合并地址，详见 [OrionTV 接入](oriontv.md)。OrionTV 只能读一个 M3U 地址且不能带登录状态，所以 token 放在地址的查询参数里；这个地址等同于直播列表的访问凭据，不要公开。`deploy_service.py` 会在部署新修订前给 `_Default` 日志接收器加上排除规则 `lunatv-live-playlist`，该路径的 Cloud Run 请求日志不再保存；规则加上之前已写入的日志按原保留期保留。要更换 token，在 Secret Manager 给 `lunatv-live-token` 添加新版本后重新运行部署，再在电视上换成新地址。
+打印 OrionTV 直播设置要填的合并地址，详见 [OrionTV 接入](oriontv.md)。OrionTV 只能读一个 M3U 地址且不能带登录状态，所以 token 放在地址的查询参数里；这个地址等同于直播列表的访问凭据，不要公开。`deploy_service.py` 会在部署新修订前给 `_Default` 日志接收器加上排除规则 `lunatv-live-playlist`，该路径的 Cloud Run 请求日志不再保存；规则加上之前已写入的日志按原保留期保留。排除规则第一次加上后要几分钟才生效，这段时间里请求合并地址仍会留下日志；首次部署后先等几分钟再访问，或访问后更换一次 token。要更换 token，在 Secret Manager 给 `lunatv-live-token` 添加新版本并停用旧版本，然后重新部署，或运行 `gcloud run services update lunatv --update-secrets=LIVE_PLAYLIST_TOKEN=lunatv-live-token:latest` 生成新修订（不需要重新构建），再在电视上换成新地址。
 
 已有部署启用该地址：先运行 `cloud/secrets.py`（只新建缺少的 token，已有秘密不变），再运行 `cloud/deploy_service.py` 重新构建部署，然后用上面的增量模式补充直播列表。
 

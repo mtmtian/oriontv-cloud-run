@@ -56,6 +56,10 @@ def add_sources(request, sources):
     added=', '.join(f'{sum(p[0]==field for p in pending)} {field}' for field,*_ in kinds)
     print(f'Added {added} entries; existing entries and other settings were preserved.')
 
+def live_playlist_url(base, token):
+    # OrionTV 1.3.14 remote input keeps only the text before the first "_".
+    return base+'/api/live/playlist?token='+urllib.parse.quote(token.strip(),safe='').replace('_','%5F')
+
 def service_url():
     # Discover the trusted service URL instead of sending credentials to a file-supplied URL.
     service=cli('run','services','describe','lunatv',f'--project={PROJECT}',f'--region={CONFIG["region"]}')
@@ -92,6 +96,6 @@ if __name__=='__main__':
     mode.add_argument('--live-url',action='store_true',help='Print the merged live playlist URL for OrionTV; it contains an access token')
     args=parser.parse_args()
     if args.live_url:
-        print(service_url()+'/api/live/playlist?token='+urllib.parse.quote(secret('lunatv-live-token').strip()))
+        print(live_playlist_url(service_url(),secret('lunatv-live-token')))
     else:
         configure(args.add_sources)
